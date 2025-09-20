@@ -23,13 +23,9 @@ app.use(
 app.use(bodyParser.json());
 
 
-
-
 // Routes
 app.use('/api', require('./routes/spreedSheetRoutes'));
-// app.get('/', (req, res) => {
-//   res.send('Hello World!')
-// })
+
 
 
 
