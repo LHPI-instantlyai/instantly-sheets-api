@@ -2,38 +2,30 @@ import argparse
 from dotenv import load_dotenv
 import os
 import re
+import json
 from firecrawl import Firecrawl
-from collections import Counter
 
 # Load environment variables
 load_dotenv()
-
-# Initialize Firecrawl
 firecrawl_api_key = os.getenv("FIRECRAWL_API")
 firecrawl = Firecrawl(api_key=firecrawl_api_key)
 
-# US-specific indicators with weights
 US_INDICATORS = {
     r"\bUnited States\b": 5,
     r"\bU\.S\.A?\b": 5,
     r"\bUSA\b": 5,
     r"\bAmerica\b": 4,
-
     r"\bAmerican Samoa\b": 3,
     r"\bGuam\b": 3,
     r"\bPuerto Rico\b": 3,
     r"\bU\.S\. Virgin Islands\b": 3,
     r"\bNorthern Mariana Islands\b": 3,
     r"\bU\.S\. Minor Outlying Islands\b": 3,
-
     r"\+1[-\s]?\(?\d{3}\)?[-\s]?\d{3}[-\s]?\d{4}\b": 2,
     r"\.us\b": 2,
     r"\.gov\b": 3,
     r"\.mil\b": 3,
-
-    r"\$\s?\d": 1,  # very weak indicator
-
-    # States
+    r"\$\s?\d": 1,
     r"\b(?:Alabama|Alaska|Arizona|Arkansas|California|Colorado|"
     r"Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|"
     r"Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|"
@@ -46,12 +38,10 @@ US_INDICATORS = {
     r"District of Columbia)\b": 5,
 }
 
-# Compile regex patterns with their weights
 US_PATTERNS = [(pat, re.compile(pat, re.IGNORECASE), weight) for pat, weight in US_INDICATORS.items()]
 
 
 def analyze_us_matches(website: str):
-    """Scrape the website and return US indicator matches with weighted confidence scores."""
     doc = firecrawl.scrape(website, formats=["html", "markdown"])
 
     content = ""
@@ -60,44 +50,41 @@ def analyze_us_matches(website: str):
         if isinstance(value, str):
             content += value
 
-    matches_with_weights = []
+    # Gather and print all words from the site
+    # words = re.findall(r'\b\w+\b', content)
+    # print("All words gathered from the site:")
+    # print(words)
+
+    matches_with_words = []
     total_weight = 0
+    matches_weight = 0
 
     for pat, regex, weight in US_PATTERNS:
         matches = regex.findall(content)
         if matches:
             count = len(matches)
-            weighted_score = count * weight
-            total_weight += weighted_score
-            matches_with_weights.append({
+            matches_weight += count * weight
+            total_weight += count * weight
+            matches_with_words.append({
                 "pattern": pat,
-                "count": count,
                 "weight": weight,
-                "score": weighted_score
+                "count": count,
+                "words": matches[:10]  # return up to 10 sample matches
             })
 
-    if total_weight == 0:
-        return None
+    if matches_weight == 0:
+        return {"isUs": 0, "confidenceRate": 0, "matches": []}
 
-    # compute confidence share
-    for m in matches_with_weights:
-        m["confidence"] = round((m["score"] / total_weight) * 100, 2)
+    confidence_rate = min(100, round((matches_weight / (matches_weight + 10)) * 100))
 
-    return matches_with_weights
+    return {"isUs": 1, "confidenceRate": confidence_rate, "matches": matches_with_words}
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("website", help="Website URL to check")
     args = parser.parse_args()
-
     site = args.website.strip()
-    matches = analyze_us_matches(site)
 
-    if matches:
-        print("US")
-        print("Matches with weighted confidence:")
-        for m in matches:
-            print(f"- {m['pattern']}  |  count: {m['count']}  |  weight: {m['weight']}  |  confidence: {m['confidence']}%")
-    else:
-        print("NOT_US")
+    result = analyze_us_matches(site)
+    print(json.dumps(result, indent=2))

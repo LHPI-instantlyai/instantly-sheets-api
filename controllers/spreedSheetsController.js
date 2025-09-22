@@ -36,7 +36,7 @@ class cardController {
           .json({ error: "sheetName and columns are required" });
       }
 
-      // 🔍 Step 1: Get existing sheet names
+      //  Step 1: Get existing sheet names
       const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
       const existingSheetNames = spreadsheet.data.sheets.map(
         (s) => s.properties.title
@@ -100,7 +100,7 @@ class cardController {
 
       const response = await sheets.spreadsheets.values.append({
         spreadsheetId,
-        range: `${sheetName}!A:Z`, // 👈 appends to next available row
+        range: `${sheetName}!A:Z`, // appends to next available row
         valueInputOption: "RAW",
         insertDataOption: "INSERT_ROWS",
         requestBody: {
@@ -109,7 +109,7 @@ class cardController {
       });
 
       res.json({
-        message: "✅ Row appended successfully",
+        message: "Row appended successfully",
         updates: response.data.updates,
       });
     } catch (error) {
@@ -118,7 +118,7 @@ class cardController {
         error.response?.data || error.message
       );
       res.status(500).json({
-        error: "❌ Failed to append row",
+        error: "Failed to append row",
         details: error.response?.data?.error?.message || error.message,
       });
     }

@@ -24,44 +24,10 @@ app.use(
 
 app.use(bodyParser.json());
 
-
-function checkIfUS(url) {
-  return new Promise((resolve, reject) => {
-    const py = spawn("python", ["isUsBased.py", url]);
-
-    let result = "";
-    py.stdout.on("data", (data) => {
-      result += data.toString();
-    });
-
-    py.stderr.on("data", (data) => {
-      console.error(`Python error: ${data}`);
-    });
-
-    py.on("close", (code) => {
-      if (code !== 0) {
-        return reject(new Error(`Python exited with code ${code}`));
-      }
-      resolve(result.trim());
-    });
-  });
-}
-
-// (async () => {
-//   try {
-//     const res = await checkIfUS("https://www.kroger.com");
-//     console.log("Result from Python:", res); // "US" or "NOT_US"
-//   } catch (err) {
-//     console.error("Error:", err);
-//   }
-// })();
-
-
-
-
 // Routes
 app.use('/api', require('./routes/spreedSheetRoutes'));
 app.use('/api', require('./routes/isUsBasedRoutes'));
+app.use('/api', require('./routes/instantlyAiRoutes'));
 
 
 
