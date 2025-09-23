@@ -30,8 +30,6 @@ app.use('/api', require('./routes/isUsBasedRoutes'));
 app.use('/api', require('./routes/instantlyAiRoutes'));
 
 
-
-
 server.listen(port, () => {
   // Log the configuration
   console.log(`Server is running on http://localhost:${port}`);
