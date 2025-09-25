@@ -25,12 +25,14 @@ for (const [key, { pattern, flags }] of Object.entries(patterns)) {
 
 class instantlyAiController {
   normalizeRow(emailRow) {
+    // console.log("---------------------------------------------------")
+    // console.log(emailRow)
+    // console.log("---------------------------------------------------")
     return {
       // "Column 1": "InstSheet-agent1",
       "For scheduling": emailRow["For scheduling"] || "",
       "sales person": emailRow["sales person"] || "",
-      "sales person email":
-        emailRow["sales person email"] || emailRow["lead email"] || "",
+      "sales person email": emailRow["sales person email"] || "",
       company: emailRow["company"] || "N/A",
       "company phone#":
         emailRow["company phone#"] ||
@@ -64,7 +66,7 @@ class instantlyAiController {
   async processEmailRow(emailRow) {
     console.log("Process Email Row");
     const spreadsheetId = process.env.SPREADSHEET_ID;
-    const sheetName = "Sheet-instaSheet-test(initial)";
+    const sheetName = "Sheet-instaSheet-test(initial test)";
     try {
       const rowJson = this.normalizeRow(emailRow);
 
@@ -196,99 +198,137 @@ class instantlyAiController {
     return parsed.isUs === 1;
   }
 
-  async isActuallyInterested(emailReply) {
-    if (!emailReply) return false;
-    try {
-      console.log("Classifying email with AI...");
-      const response = await fetch("http://localhost:11434/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "deepseek-r1",
-          messages: [
-            {
-              role: "SYSTEM",
-              content:
-                "Return only 'true' or 'false'.\n\n- Reply 'true' only if the email clearly shows **genuine interest** in the offered service. This includes, but is not limited to:\n\t- Asking for more information (e.g., pricing, features, capabilities).\n\t- Expressing a desire to schedule a call, meeting, or demo.\n\t- Directly negotiating terms or pricing.\n\t- Explicitly stating a positive sentiment or intent to proceed.\n\n- Reply 'false' if the email is **not genuinely interested** in your service. This includes:\n\t- **Self-Promotion/Service Pitch:** The email promotes their own product or service.\n\t- **Decline/Lack of Interest:** Explicitly says \"no,\" \"not interested,\" or \"we're not looking for this right now.\"\n\t- **Automated Responses:** Auto-replies, out-of-office messages, or email bouncebacks.\n\t- **Unrelated Content:** Replies that are completely irrelevant to your offer.\n\t- **Misleading Sales Pitches:** Emails that start with a positive or engaging question but then pivot to a sales pitch for their own service.\n\nStrict rule: Output must be exactly 'true' or 'false' only. No explanations, no formatting, no extra text.",
-            },
-            {
-              role: "user",
-              content: `${emailReply}`,
-            },
-          ],
-          // messages: [
-          //   {
-          //     role: "user",
-          //     content: `${emailReply}`,
-          //   },
-          // ],
-          temperature: 0,
-          num_predict: 5,
-          stream: false, // ensure you get a single JSON response
-        }),
-      });
-
-      const data = await response.json();
-
-      // Ollama chat responses usually return `data.message.content`
-      const replyContent = data.message?.content?.trim().toLowerCase();
-
-      console.log("AI classification result:", replyContent);
-
-      return replyContent === "true";
-    } catch (err) {
-      console.error("Error classifying email:", err);
-      return false;
-    }
-  }
-
-  // FROM OPEN ROUTER
-  // async isActuallyInterested(emailReply) {
-  //   if (!emailReply) return false;
-
+  //   async isActuallyInterested(emailReply) {
+  //   if (!emailReply?.trim()) return false;
+  //   console.log("isActuallyInterested");
   //   try {
-  //     const response = await fetch(
-  //       "https://openrouter.ai/api/v1/chat/completions",
-  //       {
-  //         method: "POST",
-  //         headers: {
-  //           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-  //           "Content-Type": "application/json",
-  //         },
-  //         body: JSON.stringify({
-  //           model: "x-ai/grok-4-fast:free",
-  //           messages: [
-  //             {
-  //               role: "system",
-  //               content:
-  //                 "You are an assistant that analyzes email replies to outreach campaigns offering services. Your task is to determine whether the reply expresses genuine interest in the offered services (e.g., asking for more details, showing intent to engage, scheduling, or negotiating) or if it is a promotional email where the sender is advertising their own services, which should be ignored. " +
-  //                 "Reply only with 'true' if the email shows interest. Reply 'false' if it is a promotion, not interested, auto-reply, or irrelevant.",
-  //             },
-  //             {
-  //               role: "user",
-  //               content: `Email reply:\n\n${emailReply}`,
-  //             },
-  //           ],
-  //         }),
-  //       }
-  //     );
+  //     const response = await fetch("http://localhost:11434/api/chat", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         model: "deepseek-r1",
+  //         messages: [
+  //           {
+  //             role: "SYSTEM",
+  //             content: "Output format: true|false"
+  //           },
+  //           {
+  //             role: "user",
+  //             content: `True if interested in our service, false if promoting theirs. Email: ${emailReply}`
+  //           }
+  //         ],
+  //         temperature: 0,
+  //         num_predict: 1, // Absolute minimum
+  //         stream: false,
+  //       }),
+  //     });
 
-  //     const data = await response.json();
+  //     const result = await response.json();
+  //     const rawContent = result.message?.content || '';
 
-  //     const replyContent = data.choices?.[0]?.message?.content
-  //       ?.trim()
-  //       .toLowerCase();
+  //     console.log("AI classification raw result:", rawContent);
 
-  //       console.log("AI classification result:", replyContent);
+  //     // Extract using regex - look for true/false surrounded by word boundaries
+  //     const match = rawContent.match(/\b(true|false)\b/i);
+  //     return match ? match[1].toLowerCase() === 'true' : false;
 
-  //     return replyContent === "true";
   //   } catch (err) {
   //     console.error("Error classifying email:", err);
   //     return false;
   //   }
   // }
+
+  // FROM OPEN ROUTER
+  async isActuallyInterested(emailReply) {
+    if (!emailReply || typeof emailReply !== "string") {
+      return false;
+    }
+
+    // 1. Normalize text
+    const text = emailReply.trim().toLowerCase();
+
+    // 2. Quick rule-based filters
+    const autoReplyPatterns = [
+      /out of office/,
+      /auto-reply/,
+      /thank you for your email/i,
+      /i am currently/i,
+    ];
+    const promoPatterns = [
+      /\bwe (offer|provide)\b/,
+      /\bcheck out our\b/,
+      /visit our website/,
+      /our services include/,
+    ];
+    const interestPatterns = [
+      /\bmore details\b/,
+      /\bhow does\b/,
+      /\blet['’]?s schedule\b/,
+      /\bwhen can you\b/,
+      /\bpricing\b/,
+      /\bi would like\b/,
+      /\bwe need\b/,
+      /\bagree to\b/,
+    ];
+
+    if (
+      autoReplyPatterns.some((rx) => rx.test(text)) ||
+      promoPatterns.some((rx) => rx.test(text)) ||
+      /no thanks|\bnot interested\b/.test(text)
+    ) {
+      return false;
+    }
+
+    if (interestPatterns.some((rx) => rx.test(text))) {
+      return true;
+    }
+
+    // 3. LLM fallback with strict prompt
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      const resp = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: "x-ai/grok-4-fast:free",
+            messages: [
+              {
+                role: "system",
+                content: [
+                  "Classify whether the following email reply from a prospect shows genuine interest",
+                  "—asking for pricing, next steps, scheduling, or more info.",
+                  "Ignore promotional pitches and auto-replies.",
+                  'Answer strictly "true" or "false".',
+                ].join(" "),
+              },
+              { role: "user", content: text },
+            ],
+            temperature: 0,
+          }),
+        }
+      );
+      clearTimeout(timeout);
+
+      const json = await resp.json();
+      const modelOut = json.choices?.[0]?.message?.content
+        ?.trim()
+        .toLowerCase();
+
+      console.log("LLM classification:", modelOut);
+      return modelOut === "true";
+    } catch (err) {
+      console.error("Classification error:", err);
+      return false;
+    }
+  }
 
   async encodeToSheet(spreadsheetId, sheetName, rowJson) {
     console.log("encodeToSheet");
@@ -305,11 +345,7 @@ class instantlyAiController {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
-          requests: [
-            {
-              addSheet: { properties: { title: sheetName } },
-            },
-          ],
+          requests: [{ addSheet: { properties: { title: sheetName } } }],
         },
       });
 
@@ -333,25 +369,44 @@ class instantlyAiController {
     const existingValues = existing.data.values || [];
     const headers = existingValues[0] || [];
 
-    // Find the index of the "lead email" column
+    // Find the index of "lead email" and "email reply"
     const leadEmailIndex = headers.indexOf("lead email");
+    const emailReplyIndex = headers.indexOf("email reply");
 
-    if (leadEmailIndex === -1) {
-      throw new Error(`"lead email" column not found in sheet: ${sheetName}`);
+    if (leadEmailIndex === -1 || emailReplyIndex === -1) {
+      throw new Error(
+        `"lead email" or "email reply" column not found in sheet: ${sheetName}`
+      );
     }
 
-    // Collect all existing lead emails
-    const existingLeadEmails = existingValues
-      .slice(1) // skip header row
-      .map((row) => row[leadEmailIndex]?.toLowerCase().trim())
-      .filter(Boolean);
+    // Collect existing lead emails and replies
+    const existingLeadEmails = new Set(
+      existingValues
+        .slice(1)
+        .map((row) => row[leadEmailIndex]?.toLowerCase().trim())
+        .filter(Boolean)
+    );
+    const existingEmailReplies = new Set(
+      existingValues
+        .slice(1)
+        .map((row) => row[emailReplyIndex]?.toLowerCase().trim())
+        .filter(Boolean)
+    );
 
     const newLeadEmail = (rowJson["lead email"] || "").toLowerCase().trim();
+    const newEmailReply = (rowJson["email reply"] || "").toLowerCase().trim();
 
-    // Step 4: Check if the lead email already exists
-    if (existingLeadEmails.includes(newLeadEmail)) {
+    // Step 4: Skip if either lead email OR email reply already exists
+    if (existingLeadEmails.has(newLeadEmail)) {
       console.log(
         `Lead email "${newLeadEmail}" already exists in ${sheetName}, skipping append.`
+      );
+      return false;
+    }
+
+    if (existingEmailReplies.has(newEmailReply)) {
+      console.log(
+        `Email reply already exists in ${sheetName}, skipping append.`
       );
       return false;
     }
@@ -485,7 +540,7 @@ class instantlyAiController {
       const apiKey = process.env.INSTANTLY_API_KEY;
 
       const pageLimit = opts.pageLimit || 30;
-      const emailsPerLead = opts.emailsPerLead || 30;
+      const emailsPerLead = opts.emailsPerLead || 3;
       const concurrency = opts.concurrency || 4;
       const maxEmails =
         typeof opts.maxEmails === "number" ? opts.maxEmails : 50;
@@ -535,7 +590,7 @@ class instantlyAiController {
         const emailBodyText = email?.body?.text || "";
         const emailBodyHtml = email?.body?.html || "";
         const emailReply =
-          emailBodyText || emailBodyHtml || email?.content_preview || "";
+          emailBodyText || email?.content_preview || "";
         let emailSignature = "";
         if (emailBodyText) {
           const parts = emailBodyText.split(/\r?\n\r?\n/);
@@ -581,20 +636,37 @@ class instantlyAiController {
       };
 
       // Helper: Fetch a page of leads
+      // const fetchLeadsPage = async (startingAfter = null) => {
+      //   const body = {
+      //     filters: {
+      //       campaign: campaignId,
+      //       lt_interest_status: 1,
+      //       email_reply_count: { gt: 0 },
+      //     },
+      //     limit: pageLimit,
+      //   };
+      //   if (startingAfter) body.starting_after = startingAfter;
+      //   const r = await axios.post(`${API_BASE}${LEADS_LIST_PATH}`, body, {
+      //     headers: authHeaders,
+      //   });
+      //   return r.data;
+      // };
       const fetchLeadsPage = async (startingAfter = null) => {
         const body = {
           filters: {
             campaign: campaignId,
             lt_interest_status: 1,
             email_reply_count: { gt: 0 },
+            ai_interest_value: { gte: aiInterestThreshold }, // ← new filter
           },
           limit: pageLimit,
         };
         if (startingAfter) body.starting_after = startingAfter;
-        const r = await axios.post(`${API_BASE}${LEADS_LIST_PATH}`, body, {
+
+        const resp = await axios.post(`${API_BASE}${LEADS_LIST_PATH}`, body, {
           headers: authHeaders,
         });
-        return r.data;
+        return resp.data;
       };
 
       // Helper: Fetch replies for a batch of leads in parallel (batched for efficiency)

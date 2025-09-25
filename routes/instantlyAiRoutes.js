@@ -6,6 +6,9 @@ router.get('/campaign/get-all-campaigns', instantlyAiController.getAllCampaigns)
 router.post('/campaign/get-all-campaigns-replies', instantlyAiController.getInterestedRepliesOnly_)
 
 
+router.get('/insta-sheet/test', instantlyAiController.testRun)
+
+
 
 
 
