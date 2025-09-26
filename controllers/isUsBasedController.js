@@ -48,7 +48,7 @@ class isUsBased {
     console.error("Error checking US location:", err);
     responseReturn(res, 500, { error: "Failed to check US location" });
   }
-};
+  };
 
 }
 
