@@ -7,6 +7,7 @@ router.post('/campaign/get-all-campaigns-replies', instantlyAiController.getInte
 
 
 router.get('/insta-sheet/test', instantlyAiController.testRun)
+router.post('/email-extractor', instantlyAiController.extractReply)
 
 
 

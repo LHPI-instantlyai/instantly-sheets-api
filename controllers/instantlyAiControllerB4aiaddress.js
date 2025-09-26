@@ -27,7 +27,7 @@ for (const [key, { pattern, flags }] of Object.entries(patterns)) {
 class instantlyAiController {
   normalizeRow(emailRow) {
     return {
-      "Agent": emailRow["Agent"] || "instaSheet agent",
+      // "Column 1": "InstSheet-agent1",
       "For scheduling": emailRow["For scheduling"] || "",
       "sales person": emailRow["sales person"] || "",
       "sales person email": emailRow["sales person email"] || "",
@@ -105,57 +105,6 @@ class instantlyAiController {
       return true; // Ensure main flow continues even on error
     }
   }
-  async isUSByAI(addressText) {
-    if (!addressText || addressText.trim() === "") return false;
-
-    try {
-      console.log("Classifying address with AI (Ollama)...");
-
-      const response = await fetch("http://localhost:11434/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "llama3.2", // you can swap this with any local Ollama model
-          messages: [
-            {
-              role: "system",
-              content: `Return only "true" or "false".
-            
-- Reply "true" if the input text clearly describes a location in the **United States**.
-  - Includes US states (abbreviations or full names).
-  - Recognizable US cities or ZIP code formats.
-  - Mentions of USA, U.S.A., United States.
-  
-- Reply "false" if the input is outside the United States or unclear.
-
-Strict rule: Output must be exactly "true" or "false". No explanations, no extra text.`,
-            },
-            {
-              role: "user",
-              content: addressText,
-            },
-          ],
-          temperature: 0,
-          num_predict: 5,
-          stream: false,
-        }),
-      });
-
-      const data = await response.json();
-
-      // Ollama chat API usually responds like { message: { content: "true" } }
-      const replyContent = data.message?.content?.trim().toLowerCase();
-
-      console.log("AI US classification result:", replyContent);
-
-      return replyContent === "true";
-    } catch (err) {
-      console.error("Error classifying with AI:", err);
-      return false;
-    }
-  }
 
   async isAddressUsBased({
     address = "",
@@ -208,23 +157,13 @@ Strict rule: Output must be exactly "true" or "false". No explanations, no extra
     }
 
     // 6. fallback: combine address + city + state
-    const combined = `${address} ${city} ${state}`.trim();
+    const combined = `${address} ${city} ${state}`;
     if (
       regexes.stateAbbreviations.test(combined) ||
       regexes.fullStateNames.test(combined) ||
       regexes.zip.test(combined)
     ) {
       console.log(colorize("Combined address is US based", "green"));
-      return true;
-    }
-
-    // 7. Last resort → Ask AI model
-    console.log(colorize("Regex inconclusive, asking AI model ...", "yellow"));
-    const aiResult = await this.isUSByAI(
-      `${address} ${city} ${state} ${zip} ${country}`
-    );
-    if (aiResult) {
-      console.log(colorize("AI confirmed: US based", "green"));
       return true;
     }
 
@@ -571,125 +510,63 @@ Strict rule: Output must be exactly "true" or "false". No explanations, no extra
   };
 
   extractReply = async (emailContent) => {
-  try {
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_SEC_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "x-ai/grok-4-fast:free",
-        messages: [
-          {
-            role: "system",
-            content: [
-              "You are an assistant that extracts structured data from email threads.",
-              "Given a raw email thread, separate it into five fields:",
-              "- reply: only the prospect’s direct response (exclude signatures like 'Sent from my iPhone').",
-              "- original: the original quoted email content.",
-              "- salesPerson: the full name of the salesperson who sent the original email.",
-              "- salesPersonEmail: the email address of that salesperson.",
-              "- signature: the email signature block of the reply (e.g., name, title, company, phone, address, email).",
-              "Always output valid JSON with keys: reply, original, salesPerson, salesPersonEmail, signature.",
-              "If any field is missing, return it as an empty string.",
-            ].join(" "),
-          },
-          { role: "user", content: emailContent },
-        ],
-        temperature: 0,
-      }),
-    });
-
-    const json = await resp.json();
-    const modelOut = json.choices?.[0]?.message?.content?.trim();
-    console.log("Raw model output:", modelOut);
-
     try {
-      return JSON.parse(modelOut);
-    } catch {
+      const resp = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_SEC_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "x-ai/grok-4-fast:free",
+            messages: [
+              {
+                role: "system",
+                content: [
+                  "You are an assistant that extracts structured data from email threads.",
+                  "Given a raw email thread, separate it into four fields:",
+                  "- reply: only the prospect’s direct response (remove signatures like 'Sent from my iPhone').",
+                  "- original: the original quoted email content.",
+                  "- salesPerson: the full name of the salesperson who sent the original email.",
+                  "- salesPersonEmail: the email address of that salesperson.",
+                  "Always output valid JSON with keys: reply, original, salesPerson, salesPersonEmail.",
+                  "If any field is missing, return it as an empty string.",
+                ].join(" "),
+              },
+              { role: "user", content: emailContent },
+            ],
+            temperature: 0,
+          }),
+        }
+      );
+
+      const json = await resp.json();
+      const modelOut = json.choices?.[0]?.message?.content?.trim();
+
+      try {
+        return JSON.parse(modelOut);
+      } catch {
+        return {
+          reply: "",
+          original: "",
+          salesPerson: "",
+          salesPersonEmail: "",
+          raw: modelOut,
+        };
+      }
+    } catch (err) {
+      console.error("Error calling OpenRouter:", err);
       return {
         reply: "",
         original: "",
         salesPerson: "",
         salesPersonEmail: "",
-        signature: "",
-        raw: modelOut,
+        error: err.message,
       };
     }
-  } catch (err) {
-    console.error("Error calling OpenRouter:", err);
-    return {
-      reply: "",
-      original: "",
-      salesPerson: "",
-      salesPersonEmail: "",
-      signature: "",
-      error: err.message,
-    };
-  }
-};
-
-
-
-  // extractReply = async (emailContent) => {
-  //   try {
-  //     const resp = await fetch(
-  //       "https://openrouter.ai/api/v1/chat/completions",
-  //       {
-  //         method: "POST",
-  //         headers: {
-  //           Authorization: `Bearer ${process.env.OPENROUTER_API_SEC_KEY}`,
-  //           "Content-Type": "application/json",
-  //         },
-  //         body: JSON.stringify({
-  //           model: "x-ai/grok-4-fast:free",
-  //           messages: [
-  //             {
-  //               role: "system",
-  //               content: [
-  //                 "You are an assistant that extracts structured data from email threads.",
-  //                 "Given a raw email thread, separate it into four fields:",
-  //                 "- reply: only the prospect’s direct response (remove signatures like 'Sent from my iPhone').",
-  //                 "- original: the original quoted email content.",
-  //                 "- salesPerson: the full name of the salesperson who sent the original email.",
-  //                 "- salesPersonEmail: the email address of that salesperson.",
-  //                 "Always output valid JSON with keys: reply, original, salesPerson, salesPersonEmail.",
-  //                 "If any field is missing, return it as an empty string.",
-  //               ].join(" "),
-  //             },
-  //             { role: "user", content: emailContent },
-  //           ],
-  //           temperature: 0,
-  //         }),
-  //       }
-  //     );
-
-  //     const json = await resp.json();
-  //     const modelOut = json.choices?.[0]?.message?.content?.trim();
-
-  //     try {
-  //       return JSON.parse(modelOut);
-  //     } catch {
-  //       return {
-  //         reply: "",
-  //         original: "",
-  //         salesPerson: "",
-  //         salesPersonEmail: "",
-  //         raw: modelOut,
-  //       };
-  //     }
-  //   } catch (err) {
-  //     console.error("Error calling OpenRouter:", err);
-  //     return {
-  //       reply: "",
-  //       original: "",
-  //       salesPerson: "",
-  //       salesPersonEmail: "",
-  //       error: err.message,
-  //     };
-  //   }
-  // };
+  };
 
   getInterestedRepliesOnly_ = async (req, res) => {
     try {
@@ -753,7 +630,6 @@ Strict rule: Output must be exactly "true" or "false". No explanations, no extra
           extracted.reply
         );
         return {
-          "Agent": process.env.AGENT_NAME || "instaSheet agent",
           "For scheduling": "",
           "sales person": extracted.salesPerson || "",
           "sales person email": extracted.salesPersonEmail || "",
@@ -772,7 +648,7 @@ Strict rule: Output must be exactly "true" or "false". No explanations, no extra
           state: payload.state || lead?.state || "",
           zip: payload.zip || "",
           details: payload.details || lead?.details || lead?.website || "",
-          "Email Signature": extracted.signature || emailSignature || "",
+          "Email Signature": emailSignature,
           _email_id: email?.id || email?.message_id || "",
           _lead_id: lead?.id || lead?.lead_id || "",
           _thread_id: email?.thread_id || "",

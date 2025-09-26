@@ -6,5 +6,19 @@
         "markdown",
         "latex",
         "plaintext"
-    ]
+    ],
+    "restoreTerminals.terminals": [
+    {
+      "splitTerminals": [
+        {
+          "name": "server",
+          "commands": ["npm run dev"]
+        },
+        {
+          "name": "dev",
+          "commands": [""]
+        }
+      ]
+    },
+  ]
 }
